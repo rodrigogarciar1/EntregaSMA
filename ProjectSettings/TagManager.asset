@@ -8,6 +8,7 @@ TagManager:
   - Noise
   - Puerta
   - Reliquia
+  - Agente_camara
   layers:
   - Default
   - TransparentFX
