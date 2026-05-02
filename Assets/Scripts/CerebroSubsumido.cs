@@ -257,7 +257,7 @@ public class CerebroSubsumido : MonoBehaviour
 
                 case Message_Types.PlayerSeen:
                     baseConocimiento.AlertaRobo = true;
-                    baseConocimiento.LastPlayerSighting = baseConocimiento.PlayerPosition;
+                    baseConocimiento.LastPlayerSighting = msg.position;
 
                     Debug.Log($"<color=yellow>[{gameObject.name}]</color> Alerta: jugador visto por {msg.sender?.name}");
                     if (msg.sender != gameObject) break;
@@ -345,6 +345,7 @@ public class CerebroSubsumido : MonoBehaviour
 
                     if (msg.performative == Performative.AcceptProposal)
                     {
+                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
@@ -355,6 +356,7 @@ public class CerebroSubsumido : MonoBehaviour
                 case Message_Types.FlanqueoPlayer:
                     if (msg.performative == Performative.AcceptProposal)
                     {
+                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
@@ -363,7 +365,8 @@ public class CerebroSubsumido : MonoBehaviour
 
                 case Message_Types.CercoPlayer:
                     if (msg.performative == Performative.AcceptProposal)
-                    {
+                    {   
+                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);

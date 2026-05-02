@@ -22,7 +22,8 @@ public class Flanqueo : NPCBehaviour
     }
 
     public override bool cumplePrecondiciones()
-    {
+    {   
+        Debug.Log($"{cerebro.baseConocimiento.mision}, Message_Types.FlanqueoPlayer");
         return cerebro.baseConocimiento.mision == Message_Types.FlanqueoPlayer
             && cerebro.baseConocimiento.PlayerPosition != null;
     }
