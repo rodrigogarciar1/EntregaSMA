@@ -33,13 +33,18 @@ public class CerebroSubsumido : MonoBehaviour
     /// orden de <see cref="subsimido"/></summary>
     public Queue<NPCBehaviour> behaviourQueue = new Queue<NPCBehaviour>();
 
+    private Queue<Message> mailbox = new Queue<Message>();
+
+    private Dictionary<string, List<Message>> conversations 
+        = new Dictionary<string, List<Message>>();
+
     /// <summary>
     /// Diccionario donde se guardan las precondiciones de sensor de los comportamientos.
     /// Ordenado segun el orden de <see cref="subsimido"/></summary>
     private Dictionary<(Type, string, bool), List<NPCBehaviour>> dict 
         = new Dictionary<(Type, string, bool), List<NPCBehaviour>>();
 
-
+    private bool elpipas = false;
     private void Awake()
     {
         navAgent = GetComponent<NavMeshAgent>();
@@ -59,13 +64,27 @@ public class CerebroSubsumido : MonoBehaviour
     }
 
     private void Start()
-    {
+    {   
+        CerebroSubsumido[] todos = FindObjectsOfType<CerebroSubsumido>();
+        Message hello = new Message(Performative.Inform, this.gameObject, Message_Types.Register);
+
+        // 3. Se lo enviamos a todos (incluidos nosotros mismos, para que aparezcamos en la lista)
+        foreach (var receptor in todos)
+        {
+            receptor.ReceiveMessage(hello);
+        }
+        if (this.gameObject.tag != "Agente_camara") 
+        {
+            baseConocimiento.agentes.Add(this.gameObject);
+        }
+
         navAgent = GetComponent<NavMeshAgent>();
         navAgent.speed = agentSpeed;
     }
 
     private void Update()
     {
+        ProcessMessages();
         RunCurrentBehaviour();
     }
 
@@ -120,7 +139,10 @@ public class CerebroSubsumido : MonoBehaviour
                 if (seeing)
                 {
                     baseConocimiento.PlayerPosition = obj.transform;
-                    baseConocimiento.LastPlayerSighting = obj.transform; 
+                    baseConocimiento.LastPlayerSighting = obj.transform;
+                    Message Inform = Message.InformPlayerSeen(gameObject, obj.transform.position);
+                    ReceiveMessage(Inform);
+                    Broadcast(Inform);
                 }
                 else
                 {
@@ -138,12 +160,13 @@ public class CerebroSubsumido : MonoBehaviour
 
                     if (!mr.enabled)
                     {
-                        if (baseConocimiento.relicList.Contains(obj))
-                        {
-                            baseConocimiento.relicList.Remove(obj);
-                            baseConocimiento.reliquiaCercana = null;
-                            baseConocimiento.AlertaRobo = true;
-                        }
+                    if (baseConocimiento.relicList.Contains(obj))
+                    {
+                    baseConocimiento.relicList.Remove(obj);
+                    baseConocimiento.reliquiaCercana = null;
+                    baseConocimiento.AlertaRobo = true;
+                    Broadcast(Message.InformReliquiaRobada(gameObject, obj)); // Creo que esta mal, con pasarle solo el objeto robado deberia estar
+                    }
                     }
                 }
                 return;
@@ -169,7 +192,217 @@ public class CerebroSubsumido : MonoBehaviour
             return;
         }
     }
-    
+
+    public void ReceiveMessage(Message msg)
+    {
+        mailbox.Enqueue(msg);
+        LogMessage(msg);
+    }
+
+
+    public void Broadcast(Message msg)
+    {
+        LogMessage(msg); 
+        // buscar cada agente en escena con cerebro y que no importe el orden
+        foreach (GameObject agenteObj in baseConocimiento.agentes) { // Queda verificar esto, es nuevo por asi decir, para arreglar lo de la camara que reciba
+            if (agenteObj != null && agenteObj != this.gameObject)
+            {
+                CerebroSubsumido destino = agenteObj.GetComponent<CerebroSubsumido>();
+                if (destino != null) destino.ReceiveMessage(msg);
+            }
+        }
+    }
+
+    private void LogMessage(Message msg)
+    {
+        if (!conversations.ContainsKey(msg.ConvID)) conversations[msg.ConvID] = new List<Message>();
+        conversations[msg.ConvID].Add(msg);
+    }
+
+    public List<Message> GetConversation(string convId)
+    {
+        return conversations.TryGetValue(convId, out var history) ? history : new List<Message>();
+    }
+
+    private void ProcessMessages()
+    {
+        while (mailbox.Count > 0)
+        {
+            Message msg = mailbox.Dequeue();
+
+            switch (msg.messageType)
+            {
+                case Message_Types.Register:
+                    if (!baseConocimiento.agentes.Contains(msg.sender) &&
+                        msg.sender.tag != "Agente_camara")
+                    {
+                        baseConocimiento.agentes.Add(msg.sender);
+                        // Debug.Log($"[{gameObject.name}] ha registrado a: {msg.sender.name} ({msg.sender.tag})");
+                    }
+                    break;
+
+                case Message_Types.ReliquiaRobada:
+                    if (msg.performative == Performative.Inform)
+                    {
+                        if (msg.reliquia != null && baseConocimiento.relicList.Contains(msg.reliquia))
+                        {
+                            baseConocimiento.relicList.Remove(msg.reliquia);
+                            if (baseConocimiento.reliquiaCercana == msg.reliquia)
+                                baseConocimiento.reliquiaCercana = null;
+                        }
+                        baseConocimiento.AlertaRobo = true;
+                        Debug.Log($"<color=red>[{gameObject.name}]</color> Reliquia robada: {msg.reliquia?.name} — notificada por {msg.sender?.name}");
+                    }
+                    break;
+
+                case Message_Types.PlayerSeen:
+                    baseConocimiento.AlertaRobo = true;
+                    baseConocimiento.LastPlayerSighting = baseConocimiento.PlayerPosition;
+
+                    Debug.Log($"<color=yellow>[{gameObject.name}]</color> Alerta: jugador visto por {msg.sender?.name}");
+                    if (msg.sender != gameObject) break;
+                    // if (gameObject.tag == "Agente_camara") break; 
+                    elpipas = true;
+                    // Subasta
+                    string convId = Message.NewConvID().ToString();
+                    baseConocimiento.convIdSubasta = convId;
+                    baseConocimiento.propuestasRecibidas.Clear();
+
+                    foreach (GameObject agente in baseConocimiento.agentes)
+                    {
+                        Message cfp = Message.CFPChasePlayer(gameObject, msg.position.Value);
+                        cfp.ConvID = convId;
+                        cfp.receiver = agente;
+                        Send(cfp);
+                    }
+                    break;
+
+                case Message_Types.ChasePlayer:
+
+                    if (msg.performative == Performative.CFP)
+                    {
+                        float distancia = Vector3.Distance(transform.position, msg.position.Value);
+
+                        Message propuesta = Message.ProposeChase(
+                            gameObject,
+                            msg.sender,
+                            distancia,
+                            msg.ConvID
+                        );
+
+                        Send(propuesta);
+                    }
+
+                    if (msg.performative == Performative.Propose)
+                    {
+                        if (msg.ConvID != baseConocimiento.convIdSubasta)
+                            break;
+                        if (!elpipas) break;
+                        baseConocimiento.propuestasRecibidas.Add(msg);
+
+                        if (baseConocimiento.propuestasRecibidas.Count == baseConocimiento.agentes.Count)
+                        {
+                            Debug.Log($"[{gameObject.name}] todas las propuestas recibidas");
+
+                            var ordenadas = baseConocimiento.propuestasRecibidas
+                                .OrderBy(p => p.proposalValue)
+                                .ToList();
+
+                            // Chase
+                            if (ordenadas.Count > 0)
+                            {
+                                Send(Message.AcceptProposal(
+                                    gameObject,
+                                    ordenadas[0].sender,
+                                    Message_Types.ChasePlayer,
+                                    msg.ConvID
+                                ));
+                            }
+
+                            // Flanqueo
+                            if (ordenadas.Count > 1)
+                            {
+                                Send(Message.AcceptProposal(
+                                    gameObject,
+                                    ordenadas[1].sender,
+                                    Message_Types.FlanqueoPlayer,
+                                    msg.ConvID
+                                ));
+                            }
+
+                            // Cerco
+                            for (int i = 2; i < ordenadas.Count; i++)
+                            {
+                                Send(Message.AcceptProposal(
+                                    gameObject,
+                                    ordenadas[i].sender,
+                                    Message_Types.CercoPlayer,
+                                    msg.ConvID
+                                ));
+                            }
+                        }
+                    }
+
+                    if (msg.performative == Performative.AcceptProposal)
+                    {
+                        baseConocimiento.mision = msg.messageType;
+                        Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
+                        SetMisionBehaviour(msg.messageType);
+                    }
+
+                    break;
+
+                case Message_Types.FlanqueoPlayer:
+                    if (msg.performative == Performative.AcceptProposal)
+                    {
+                        baseConocimiento.mision = msg.messageType;
+                        Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
+                        SetMisionBehaviour(msg.messageType);
+                    }
+                    break;
+
+                case Message_Types.CercoPlayer:
+                    if (msg.performative == Performative.AcceptProposal)
+                    {
+                        baseConocimiento.mision = msg.messageType;
+                        Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
+                        SetMisionBehaviour(msg.messageType);
+                    }
+                    break;
+            }
+        }
+    }
+    public void Send(Message msg)
+    {
+        if (msg.receiver == null) return;
+
+        CerebroSubsumido destino = msg.receiver.GetComponent<CerebroSubsumido>();
+        if (destino != null)
+        {
+            destino.ReceiveMessage(msg);
+            LogMessage(msg);
+        }
+    }
+    public void SetMisionBehaviour(Message_Types mision)
+    {
+        NPCBehaviour target = null;
+        foreach (NPCBehaviour b in subsumido)
+        {
+            if ((mision == Message_Types.FlanqueoPlayer && b is Flanqueo) ||
+                (mision == Message_Types.CercoPlayer    && b is Cerco)    ||
+                (mision == Message_Types.ChasePlayer    && b is Chase))
+            {
+                target = b;
+                break;
+            }
+        }
+        if (target == null) return;
+
+        if (behaviourQueue.Count > 0) behaviourQueue.Peek().terminate();
+        behaviourQueue.Clear();
+        behaviourQueue.Enqueue(target);
+    }
+
     /// <summary>
     /// Ejecuta el siguiente comportamiento en la <see cref="behaviourQueue"/>, 
     /// si no cumple las precondiciones se comprueba el siguiente.

@@ -45,5 +45,10 @@ public class BaseConocimiento : MonoBehaviour
     /// Para evitar conflictos al investigar el ruido
     /// </summary>
     public bool investigatingNoise = false;
+
+    public List<GameObject> agentes = new List<GameObject>();
+    public string convIdSubasta = "";
+    public List<Message> propuestasRecibidas = new List<Message>();
+    public Message_Types? mision = null;
 }
 
