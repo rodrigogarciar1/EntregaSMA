@@ -375,6 +375,7 @@ public class CerebroSubsumido : MonoBehaviour
 
                     if (msg.performative == Performative.AcceptProposal)
                     {
+                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
@@ -385,6 +386,7 @@ public class CerebroSubsumido : MonoBehaviour
                 case Message_Types.FlanqueoPlayer:
                     if (msg.performative == Performative.AcceptProposal)
                     {
+                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
