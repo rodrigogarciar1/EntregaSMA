@@ -7,7 +7,6 @@ public class StealItem : MonoBehaviour
 {   
     public GameObject ItemOnPlayer;
     public GameObject Text;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
 
     private MeshRenderer renderer;
     private void Awake()

@@ -32,9 +32,14 @@ public class CerebroSubsumido : MonoBehaviour
     ///  <summary>Cola de comportamientos que cumplieros los requisitos de sensor. Ordenada segun el
     /// orden de <see cref="subsimido"/></summary>
     public Queue<NPCBehaviour> behaviourQueue = new Queue<NPCBehaviour>();
-
+    /// <summary>
+    /// Almacena los mensajes entrantes
+    /// </summary>
     private Queue<Message> mailbox = new Queue<Message>();
 
+    /// <summary>
+    /// Organiza las conversaciones
+    /// </summary>
     private Dictionary<string, List<Message>> conversations 
         = new Dictionary<string, List<Message>>();
 
@@ -43,8 +48,11 @@ public class CerebroSubsumido : MonoBehaviour
     /// Ordenado segun el orden de <see cref="subsimido"/></summary>
     private Dictionary<(Type, string, bool), List<NPCBehaviour>> dict 
         = new Dictionary<(Type, string, bool), List<NPCBehaviour>>();
+    /// <summary>
+    /// Candado para verificar que 1 solo agente inicia la subasta
+    /// </summary>
+    private bool itsme = false;
 
-    private bool elpipas = false;
     private void Awake()
     {
         navAgent = GetComponent<NavMeshAgent>();
@@ -65,11 +73,13 @@ public class CerebroSubsumido : MonoBehaviour
 
     private void Start()
     {   
+        /// Buscamos a todos los agentes
         CerebroSubsumido[] todos = FindObjectsOfType<CerebroSubsumido>();
+        /// Indicamos quienes somos con el register
         Message hello = new Message(Performative.Inform, this.gameObject, Message_Types.Register);
 
-        // 3. Se lo enviamos a todos (incluidos nosotros mismos, para que aparezcamos en la lista)
-        foreach (var receptor in todos)
+        // Enviar a todos incluidos nosotros mismos para que aparezcamos en la lista, pero las cámaras no
+        foreach (CerebroSubsumido receptor in todos)
         {
             receptor.ReceiveMessage(hello);
         }
@@ -212,18 +222,27 @@ public class CerebroSubsumido : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Recibe un mensaje FIPA entrante y lo encola en el buzón del agente.
+    /// </summary>
+    /// <param name="msg">Mensaje recibido.</param>
     public void ReceiveMessage(Message msg)
     {
         mailbox.Enqueue(msg);
         LogMessage(msg);
     }
 
-
+    /// <summary>
+    /// Envía un mensaje FIPA a todos los agentes registrados en la base de conocimiento,
+    /// excluye al propio emisor. Solo alcanza a agentes las cámaras no reciben
+    /// mensajes.
+    /// </summary>
+    /// <param name="msg">Mensaje a difundir.</param>
     public void Broadcast(Message msg)
     {
         LogMessage(msg); 
-        // buscar cada agente en escena con cerebro y que no importe el orden
-        foreach (GameObject agenteObj in baseConocimiento.agentes) { // Queda verificar esto, es nuevo por asi decir, para arreglar lo de la camara que reciba
+        // buscar cada agente en escena 
+        foreach (GameObject agenteObj in baseConocimiento.agentes) { 
             if (agenteObj != null && agenteObj != this.gameObject)
             {
                 CerebroSubsumido destino = agenteObj.GetComponent<CerebroSubsumido>();
@@ -232,20 +251,36 @@ public class CerebroSubsumido : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Registra un mensaje en el historial de conversaciones del agente,
+    /// agrupándolo por ConvID. 
+    /// </summary>
+    /// <param name="msg">Mensaje a registrar.</param>
     private void LogMessage(Message msg)
     {
         if (!conversations.ContainsKey(msg.ConvID)) conversations[msg.ConvID] = new List<Message>();
         conversations[msg.ConvID].Add(msg);
     }
 
+    /// <summary>
+    /// Devuelve el historial de mensajes asociado a una conversación concreta.
+    /// </summary>
+    /// <param name="convId">Identificador de la conversación .</param>
+    /// <returns>Lista de mensajes de la conversación</returns>
     public List<Message> GetConversation(string convId)
     {
         return conversations.TryGetValue(convId, out var history) ? history : new List<Message>();
     }
-    public void SearchPlayer()
-    {
-        
-    }
+    /// <summary>
+    /// Procesa todos los mensajes pendientes en el buzón del agente.
+    /// Se ejecuta cada ciclo de Update:
+    /// - INFORM: actualiza el estado del conocimiento (jugador visto, reliquia robada).
+    /// - CFP: el agente calcula su coste y responde con PROPOSE.
+    /// - PROPOSE: el iniciador recoge propuestas y asigna roles cuando las tiene todas.
+    /// - ACCEPT_PROPOSAL: el agente acepta su rol y activa el comportamiento correspondiente.
+    /// No ejecuta comportamientos directamente toda la lógica de ejecución
+    /// queda delegada en la arquitectura de subsunción.
+    /// </summary>
     private void ProcessMessages()
     {
         while (mailbox.Count > 0)
@@ -253,7 +288,7 @@ public class CerebroSubsumido : MonoBehaviour
             Message msg = mailbox.Dequeue();
 
             switch (msg.messageType)
-            {
+            {   // Las cámaras no se registran como agentes para no participar en subastas.
                 case Message_Types.Register:
                     if (!baseConocimiento.agentes.Contains(msg.sender) &&
                         msg.sender.tag != "Agente_camara")
@@ -262,7 +297,8 @@ public class CerebroSubsumido : MonoBehaviour
                         // Debug.Log($"[{gameObject.name}] ha registrado a: {msg.sender.name} ({msg.sender.tag})");
                     }
                     break;
-
+                // Elimina la reliquia de la lista conocida y activa la alerta de robo.
+                // Si la reliquia era la asignada a este agente, la desvincula.
                 case Message_Types.ReliquiaRobada:
                     if (msg.performative == Performative.Inform)
                     {
@@ -276,7 +312,7 @@ public class CerebroSubsumido : MonoBehaviour
                         Debug.Log($"<color=red>[{gameObject.name}]</color> Reliquia robada: {msg.reliquia?.name} — notificada por {msg.sender?.name}");
                     }
                     break;
-
+                // Solo el emisor original inicia el cfp.
                 case Message_Types.PlayerSeen:
                     baseConocimiento.AlertaRobo = true;
 
@@ -289,7 +325,7 @@ public class CerebroSubsumido : MonoBehaviour
                     Debug.Log($"<color=yellow>[{gameObject.name}]</color> Alerta: jugador visto por {msg.sender?.name}");
                     if (msg.sender != gameObject) break;
                     // if (gameObject.tag == "Agente_camara") break; 
-                    elpipas = true;
+                    itsme = true;
                     // Subasta
                     string convId = Message.NewConvID().ToString();
                     baseConocimiento.convIdSubasta = convId;
@@ -303,12 +339,12 @@ public class CerebroSubsumido : MonoBehaviour
                         Send(cfp);
                     }
                     break;
-
+                // El agente calcula su coste y responde con una propuesta
                 case Message_Types.ChasePlayer:
 
                     if (msg.performative == Performative.CFP)
                     {   
-
+                        // El agente calcula su coste y responde 
                         if (msg.position.HasValue)
                         {
                             baseConocimiento.MissionTarget = msg.position.Value;
@@ -331,9 +367,10 @@ public class CerebroSubsumido : MonoBehaviour
                     {
                         if (msg.ConvID != baseConocimiento.convIdSubasta)
                             break;
-                        if (!elpipas) break;
+                        if (!itsme) break;
                         baseConocimiento.propuestasRecibidas.Add(msg);
-
+                        // El iniciador recoge propuestas 
+                        // Cuando tiene todas, ordena por coste y asigna roles
                         if (baseConocimiento.propuestasRecibidas.Count == baseConocimiento.agentes.Count)
                         {
                             Debug.Log($"[{gameObject.name}] todas las propuestas recibidas");
@@ -376,7 +413,7 @@ public class CerebroSubsumido : MonoBehaviour
                             }
                         }
                     }
-
+                    // El agente acepta el rol Chase 
                     if (msg.performative == Performative.AcceptProposal)
                     {
                         baseConocimiento.mision = msg.messageType;
@@ -406,6 +443,13 @@ public class CerebroSubsumido : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// Envía un mensaje FIPA a un agente concreto identificado por msg.receiver.
+    /// A diferencia de Broadcast, este método es un envío dirigido: solo llega
+    /// al destinatario especificado.
+    /// </summary>
+    /// <param name="msg">Mensaje a enviar. Debe tener receiver asignado.</param>
     public void Send(Message msg)
     {
         if (msg.receiver == null) return;
@@ -417,7 +461,12 @@ public class CerebroSubsumido : MonoBehaviour
             LogMessage(msg);
         }
     }
-
+    
+    /// <summary>
+    /// Fuerza la activación inmediata del comportamiento de misión.
+    /// Si no se encuentra el comportamiento correspondiente a la misión, no hace nada.
+    /// </summary>
+    /// <param name="mision">Tipo de misión asignada.</param>
     public void SetMisionBehaviour(Message_Types mision)
     {
         NPCBehaviour target = null;
@@ -450,6 +499,7 @@ public class CerebroSubsumido : MonoBehaviour
 
         Debug.Log($"<color=green>[{gameObject.name}]</color> Cola seteada con: {target.GetType().Name}, cumple: {target.cumplePrecondiciones()}");
     }
+
     /// <summary>
     /// Ejecuta el siguiente comportamiento en la <see cref="behaviourQueue"/>, 
     /// si no cumple las precondiciones se comprueba el siguiente.

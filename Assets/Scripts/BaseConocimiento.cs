@@ -49,9 +49,24 @@ public class BaseConocimiento : MonoBehaviour
     /// </summary>
     public bool investigatingNoise = false;
 
+    /// <summary>
+    /// Lista de agentes registrados no cámaras
+    ///  </summary>
     public List<GameObject> agentes = new List<GameObject>();
+
+    /// <summary>
+    /// ID de la subasta
+    /// </summary>
     public string convIdSubasta = "";
+
+    /// <summary>
+    /// Lista de propuestas recibidas durante una subasta activa (CFP).
+    /// </summary>
     public List<Message> propuestasRecibidas = new List<Message>();
+
+    /// <summary>
+    /// Misión asignada al agente mediante ACCEPT_PROPOSAL.
+    /// </summary>
     public Message_Types? mision = null;
 }
 
