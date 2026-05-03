@@ -10,57 +10,68 @@ public class Flanqueo : NPCBehaviour
     /// <summary>Distancia a la que se posiciona detrás del jugador.</summary>
     public float flanqueoDistance = 4f;
 
+    /// <summary>Tiempo en posición antes de pasar al siguiente comportamiento.</summary>
+    public float tiempoEnPosicion = 8f;
+
+    /// <summary>Tiempo restante en posición.</summary>
+    private float timer;
+
+    /// <summary>Controla que el comportamiento se inicialice una sola vez.</summary>
+    private bool isFlanqueando = false;
+
     private Vector3 targetPos;
-    private bool posicionCalculada = false;
 
     private void Awake() => cerebro = GetComponent<CerebroSubsumido>();
 
     public override (Type, string, bool)[] neededSensorState()
     {
-        // Se activa igual que Chase: cuando se ve al jugador
         return new (Type, string, bool)[] { (typeof(Vision), "Player", true) };
     }
 
-    // public override bool cumplePrecondiciones()
-    //     {
-    //         return cerebro.baseConocimiento.mision == Message_Types.FlanqueoPlayer
-    //             && cerebro.baseConocimiento.PlayerPosition != null;
-    //     }
-
     public override bool cumplePrecondiciones()
-    {   
-        Debug.Log($"{cerebro.baseConocimiento.mision}, Message_Types.FlanqueoPlayer");
+    {
         return cerebro.baseConocimiento.mision == Message_Types.FlanqueoPlayer
             && (cerebro.baseConocimiento.PlayerPosition != null
                 || cerebro.baseConocimiento.isThereMissionTarget);
     }
-    // public override void ejecutar()
-    // {
-    //     // Usamos PlayerPosition si lo vemos, o LastPlayerSighting si no
-    //     Transform jugador = cerebro.baseConocimiento.PlayerPosition ?? cerebro.baseConocimiento.LastPlayerSighting;
-        
-    //     if (jugador == null) return;
 
-    //     Vector3 dirAgente = (jugador.position - transform.position).normalized;
-    //     targetPos = jugador.position + dirAgente * flanqueoDistance;
-
-    //     cerebro.navAgent.SetDestination(targetPos);
-    //     Debug.Log($"<color=magenta>[Flanqueo]</color> {gameObject.name} flanqueando hacia {targetPos}");
-    // }
-    
     public override void ejecutar()
     {
-        Vector3 posJugador = cerebro.baseConocimiento.PlayerPosition != null
-            ? cerebro.baseConocimiento.PlayerPosition.position
-            : cerebro.baseConocimiento.MissionTarget;
+        // Calcular posición de flanqueo 
+        if (!isFlanqueando)
+        {
+            Vector3 posJugador = cerebro.baseConocimiento.PlayerPosition != null
+                ? cerebro.baseConocimiento.PlayerPosition.position
+                : cerebro.baseConocimiento.MissionTarget;
 
-        Vector3 dirAgente = (posJugador - transform.position).normalized;
-        targetPos = posJugador + dirAgente * flanqueoDistance;
-        cerebro.navAgent.SetDestination(targetPos);
-        Debug.Log($"<color=magenta>[Flanqueo]</color> {gameObject.name} flanqueando hacia {targetPos}");
+            Vector3 dirAgente = (posJugador - transform.position).normalized;
+            targetPos = posJugador + dirAgente * flanqueoDistance;
+
+            cerebro.navAgent.SetDestination(targetPos);
+            timer = tiempoEnPosicion;
+            isFlanqueando = true;
+
+            Debug.Log($"<color=magenta>[Flanqueo]</color> {gameObject.name} flanqueando hacia {targetPos}");
+        }
+
+        // Una vez llegado, cuenta el tiempo y pasa al siguiente
+        if (!cerebro.navAgent.pathPending && cerebro.navAgent.remainingDistance <= 1f)
+        {
+            timer -= Time.deltaTime;
+
+            if (timer <= 0)
+            {
+                Debug.Log($"<color=magenta>[Flanqueo]</color> {gameObject.name} tiempo en posición agotado.");
+                cerebro.baseConocimiento.mision = null;
+                cerebro.baseConocimiento.isThereMissionTarget = false;
+                isFlanqueando = false;
+                cerebro.RunNextBehaviour();
+            }
+        }
     }
+
     public override void terminate()
     {
-        posicionCalculada = false;
+        isFlanqueando = false;
     }
 }

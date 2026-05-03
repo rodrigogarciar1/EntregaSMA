@@ -24,9 +24,7 @@ public enum Message_Types
     FlanqueoPlayer,
     CercoPlayer,         
     InvestigatePosition, 
-    GuardRelic,          
-    TaskDone,            
-    TaskFailed           
+    GuardRelic         
 }
 
 
@@ -46,7 +44,7 @@ public class Message
     public static int NewConvID() => nextConvID++;
 
     public Message(Performative performative, GameObject sender, Message_Types messageType, GameObject receiver = null)
-    {
+    {   
         this.performative = performative;
         this.sender       = sender;
         this.receiver     = receiver;
@@ -58,14 +56,14 @@ public class Message
 
     public static Message InformPlayerSeen(GameObject sender, Vector3 playerPos)
     {
-        var msg = new Message(Performative.Inform, sender, Message_Types.PlayerSeen);
+        Message msg = new Message(Performative.Inform, sender, Message_Types.PlayerSeen);
         msg.position = playerPos;
         return msg;
     }
 
     public static Message InformPlayerHeard(GameObject sender, Vector3 noisePos)
     {
-        var msg = new Message(Performative.Inform, sender, Message_Types.PlayerHeard);
+        Message msg = new Message(Performative.Inform, sender, Message_Types.PlayerHeard);
         msg.position = noisePos;
         return msg;
     }
@@ -82,7 +80,7 @@ public class Message
         msg.reliquia = reliquia; // informar de que reliquia se ha robado
         return msg;
     }
-// no funciona es una idea
+    // no funciona es una idea
     public static Message CFPChasePlayer(GameObject sender, Vector3 playerPos)
     {
         Message msg = new Message(Performative.CFP, sender, Message_Types.ChasePlayer);
@@ -100,7 +98,7 @@ public class Message
 
     public static Message AcceptProposal(GameObject sender, GameObject winner, Message_Types task, string convId)
     {
-        var msg = new Message(Performative.AcceptProposal, sender, task, winner);
+        Message msg = new Message(Performative.AcceptProposal, sender, task, winner);
         msg.ConvID = convId;
         return msg;
     }

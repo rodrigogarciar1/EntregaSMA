@@ -84,8 +84,9 @@ public class CerebroSubsumido : MonoBehaviour
 
     private void Update()
     {
-        ProcessMessages();
         RunCurrentBehaviour();
+        ProcessMessages();
+
     }
 
     /// <summary>
@@ -241,7 +242,10 @@ public class CerebroSubsumido : MonoBehaviour
     {
         return conversations.TryGetValue(convId, out var history) ? history : new List<Message>();
     }
-
+    public void SearchPlayer()
+    {
+        
+    }
     private void ProcessMessages()
     {
         while (mailbox.Count > 0)
@@ -375,7 +379,6 @@ public class CerebroSubsumido : MonoBehaviour
 
                     if (msg.performative == Performative.AcceptProposal)
                     {
-                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
@@ -386,7 +389,6 @@ public class CerebroSubsumido : MonoBehaviour
                 case Message_Types.FlanqueoPlayer:
                     if (msg.performative == Performative.AcceptProposal)
                     {
-                        baseConocimiento.PlayerPosition = msg.position;
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
@@ -415,33 +417,39 @@ public class CerebroSubsumido : MonoBehaviour
             LogMessage(msg);
         }
     }
+
     public void SetMisionBehaviour(Message_Types mision)
     {
         NPCBehaviour target = null;
+
         foreach (NPCBehaviour b in subsumido)
         {
             if ((mision == Message_Types.FlanqueoPlayer && b is Flanqueo) ||
-                (mision == Message_Types.CercoPlayer    && b is Cerco)    ||
-                (mision == Message_Types.ChasePlayer    && b is Chase))
+                (mision == Message_Types.CercoPlayer && b is Cerco) ||
+                (mision == Message_Types.ChasePlayer && b is Chase))
             {
                 target = b;
                 break;
             }
         }
+
         if (target == null) return;
 
-        if (behaviourQueue.Count > 0) behaviourQueue.Peek().terminate();
+        if (behaviourQueue.Count > 0)
+            behaviourQueue.Peek().terminate();
+
+        NPCBehaviour[] temp = behaviourQueue.ToArray();
         behaviourQueue.Clear();
+
         behaviourQueue.Enqueue(target);
-        if (target != null)
-    {
-        if (behaviourQueue.Count > 0) behaviourQueue.Peek().terminate();
-        behaviourQueue.Clear();
-        behaviourQueue.Enqueue(target);
+
+        foreach (NPCBehaviour behaviour in temp)
+        {
+            behaviourQueue.Enqueue(behaviour);
+        }
+
         Debug.Log($"<color=green>[{gameObject.name}]</color> Cola seteada con: {target.GetType().Name}, cumple: {target.cumplePrecondiciones()}");
     }
-    }
-
     /// <summary>
     /// Ejecuta el siguiente comportamiento en la <see cref="behaviourQueue"/>, 
     /// si no cumple las precondiciones se comprueba el siguiente.
