@@ -13,6 +13,7 @@ public class IrAReliquia : NPCBehaviour
     }
     public override bool cumplePrecondiciones()
     {
+        
         return cerebro.baseConocimiento.LastPlayerSighting !=null || cerebro.baseConocimiento.AlertaRobo;
     }
 

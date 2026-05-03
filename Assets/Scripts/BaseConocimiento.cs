@@ -24,6 +24,9 @@ public class BaseConocimiento : MonoBehaviour
     public Transform Salida;
 
 
+    public Vector3 MissionTarget;
+    public bool isThereMissionTarget = false;
+
     /// <summary>
     /// Posicion en la que se vio por ulitma vez al jugador. null si no se dio el caso.
     /// </summary>

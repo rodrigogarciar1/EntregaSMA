@@ -24,35 +24,62 @@ public class Cerco : NPCBehaviour
         return new (Type, string, bool)[] { (typeof(Vision), "Player", true) };
     }
 
+    // public override bool cumplePrecondiciones()
+    //     {
+    //         return cerebro.baseConocimiento.mision == Message_Types.CercoPlayer
+    //             && cerebro.baseConocimiento.PlayerPosition != null;
+    //     }
+
+    // public override void ejecutar()
+    // {
+    //     Transform jugador = cerebro.baseConocimiento.PlayerPosition ?? cerebro.baseConocimiento.LastPlayerSighting;
+        
+    //     if (jugador == null) return;
+
+    //     if (!posicionCalculada || cerebro.navAgent.remainingDistance <= recalcDistance)
+    //     {
+    //         Vector2 rng = UnityEngine.Random.insideUnitCircle.normalized;
+    //         targetPos = jugador.position + new Vector3(rng.x, 0, rng.y) * cercoRadius;
+
+    //         NavMeshHit hit;
+    //         if (NavMesh.SamplePosition(targetPos, out hit, cercoRadius, NavMesh.AllAreas))
+    //         {
+    //             targetPos = hit.position;
+    //         }
+
+    //         cerebro.navAgent.SetDestination(targetPos);
+    //         posicionCalculada = true;
+    //         Debug.Log($"<color=cyan>[Cerco]</color> {gameObject.name} posición de cerco: {targetPos}");
+    //     }
+    // }
+    
     public override bool cumplePrecondiciones()
     {
         return cerebro.baseConocimiento.mision == Message_Types.CercoPlayer
-            && cerebro.baseConocimiento.PlayerPosition != null;
+            && (cerebro.baseConocimiento.PlayerPosition != null
+                || cerebro.baseConocimiento.isThereMissionTarget);
     }
 
     public override void ejecutar()
     {
-        Transform jugador = cerebro.baseConocimiento.PlayerPosition;
+        Vector3 posJugador = cerebro.baseConocimiento.PlayerPosition != null
+            ? cerebro.baseConocimiento.PlayerPosition.position
+            : cerebro.baseConocimiento.MissionTarget;
 
-        // Si no tiene posición o ya llegó, calcula una nueva aleatoria
         if (!posicionCalculada || cerebro.navAgent.remainingDistance <= recalcDistance)
         {
             Vector2 rng = UnityEngine.Random.insideUnitCircle.normalized;
-            targetPos = jugador.position + new Vector3(rng.x, 0, rng.y) * cercoRadius;
+            targetPos = posJugador + new Vector3(rng.x, 0, rng.y) * cercoRadius;
 
             NavMeshHit hit;
             if (NavMesh.SamplePosition(targetPos, out hit, cercoRadius, NavMesh.AllAreas))
-            {
                 targetPos = hit.position;
-            }
 
             cerebro.navAgent.SetDestination(targetPos);
             posicionCalculada = true;
-
             Debug.Log($"<color=cyan>[Cerco]</color> {gameObject.name} posición de cerco: {targetPos}");
         }
     }
-
     public override void terminate()
     {
         posicionCalculada = false;

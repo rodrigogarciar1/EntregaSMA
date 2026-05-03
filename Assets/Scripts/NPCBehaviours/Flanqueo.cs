@@ -21,25 +21,43 @@ public class Flanqueo : NPCBehaviour
         return new (Type, string, bool)[] { (typeof(Vision), "Player", true) };
     }
 
+    // public override bool cumplePrecondiciones()
+    //     {
+    //         return cerebro.baseConocimiento.mision == Message_Types.FlanqueoPlayer
+    //             && cerebro.baseConocimiento.PlayerPosition != null;
+    //     }
+
     public override bool cumplePrecondiciones()
     {
         return cerebro.baseConocimiento.mision == Message_Types.FlanqueoPlayer
-            && cerebro.baseConocimiento.PlayerPosition != null;
+            && (cerebro.baseConocimiento.PlayerPosition != null
+                || cerebro.baseConocimiento.isThereMissionTarget);
     }
+    // public override void ejecutar()
+    // {
+    //     // Usamos PlayerPosition si lo vemos, o LastPlayerSighting si no
+    //     Transform jugador = cerebro.baseConocimiento.PlayerPosition ?? cerebro.baseConocimiento.LastPlayerSighting;
+        
+    //     if (jugador == null) return;
 
+    //     Vector3 dirAgente = (jugador.position - transform.position).normalized;
+    //     targetPos = jugador.position + dirAgente * flanqueoDistance;
+
+    //     cerebro.navAgent.SetDestination(targetPos);
+    //     Debug.Log($"<color=magenta>[Flanqueo]</color> {gameObject.name} flanqueando hacia {targetPos}");
+    // }
+    
     public override void ejecutar()
     {
-        Transform jugador = cerebro.baseConocimiento.PlayerPosition;
+        Vector3 posJugador = cerebro.baseConocimiento.PlayerPosition != null
+            ? cerebro.baseConocimiento.PlayerPosition.position
+            : cerebro.baseConocimiento.MissionTarget;
 
-        // Calcula el punto opuesto: desde el agente, pasando por el jugador, y más allá
-        Vector3 dirAgente = (jugador.position - transform.position).normalized;
-        targetPos = jugador.position + dirAgente * flanqueoDistance;
-
+        Vector3 dirAgente = (posJugador - transform.position).normalized;
+        targetPos = posJugador + dirAgente * flanqueoDistance;
         cerebro.navAgent.SetDestination(targetPos);
-
         Debug.Log($"<color=magenta>[Flanqueo]</color> {gameObject.name} flanqueando hacia {targetPos}");
     }
-
     public override void terminate()
     {
         posicionCalculada = false;

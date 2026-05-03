@@ -95,9 +95,25 @@ public class CerebroSubsumido : MonoBehaviour
     /// <param name="obj">Objeto que ha cambiado</param>
     /// <param name="seeing">true si se ha percibido, false si se deja de percibir</param>
     public void Notify(Type sensorType, GameObject obj, bool seeing){   
-
+        // Primero actualizamos los datos en la base de conocimiento sin tocar la cola
         string tag = obj.tag; // Se identifica el tipo de objeto
         checkRelevantStateChange(sensorType, obj, tag, seeing); // Se cambia la base de conocimiento si es necesario
+
+        // FIX: Si el agente tiene una misión de combate, ignoramos otros sensores
+        // Esto evita que "Vision: Reliquia" limpie la cola de la subasta
+        if (baseConocimiento.mision == Message_Types.ChasePlayer ||
+            baseConocimiento.mision == Message_Types.FlanqueoPlayer ||
+            baseConocimiento.mision == Message_Types.CercoPlayer)
+        {
+            // Solo permitimos que la visión del jugador actualice la cola si es necesario
+            if (!(sensorType == typeof(Vision) && obj.CompareTag("Player")))
+            {
+                return; 
+            }
+        }
+        // fin fix
+        // string tag = obj.tag; // Se identifica el tipo de objeto
+        // checkRelevantStateChange(sensorType, obj, tag, seeing); // Se cambia la base de conocimiento si es necesario
 
         List<NPCBehaviour> possibleBehaviours; // Lista de comportamientos que cumplen los requisitos de sensores
 
@@ -140,6 +156,8 @@ public class CerebroSubsumido : MonoBehaviour
                 {
                     baseConocimiento.PlayerPosition = obj.transform;
                     baseConocimiento.LastPlayerSighting = obj.transform;
+                    baseConocimiento.MissionTarget = obj.transform.position;
+                    baseConocimiento.isThereMissionTarget = true;
                     Message Inform = Message.InformPlayerSeen(gameObject, obj.transform.position);
                     ReceiveMessage(Inform);
                     Broadcast(Inform);
@@ -257,7 +275,12 @@ public class CerebroSubsumido : MonoBehaviour
 
                 case Message_Types.PlayerSeen:
                     baseConocimiento.AlertaRobo = true;
-                    baseConocimiento.LastPlayerSighting = baseConocimiento.PlayerPosition;
+
+                    if (msg.position.HasValue)
+                    {
+                    baseConocimiento.MissionTarget = msg.position.Value;
+                    baseConocimiento.isThereMissionTarget = true;
+                    }   
 
                     Debug.Log($"<color=yellow>[{gameObject.name}]</color> Alerta: jugador visto por {msg.sender?.name}");
                     if (msg.sender != gameObject) break;
@@ -280,7 +303,14 @@ public class CerebroSubsumido : MonoBehaviour
                 case Message_Types.ChasePlayer:
 
                     if (msg.performative == Performative.CFP)
-                    {
+                    {   
+
+                        if (msg.position.HasValue)
+                        {
+                            baseConocimiento.MissionTarget = msg.position.Value;
+                            baseConocimiento.isThereMissionTarget = true;
+                        }
+
                         float distancia = Vector3.Distance(transform.position, msg.position.Value);
 
                         Message propuesta = Message.ProposeChase(
@@ -304,7 +334,7 @@ public class CerebroSubsumido : MonoBehaviour
                         {
                             Debug.Log($"[{gameObject.name}] todas las propuestas recibidas");
 
-                            var ordenadas = baseConocimiento.propuestasRecibidas
+                            List<Message> ordenadas = baseConocimiento.propuestasRecibidas
                                 .OrderBy(p => p.proposalValue)
                                 .ToList();
 
@@ -363,7 +393,7 @@ public class CerebroSubsumido : MonoBehaviour
 
                 case Message_Types.CercoPlayer:
                     if (msg.performative == Performative.AcceptProposal)
-                    {
+                    {   
                         baseConocimiento.mision = msg.messageType;
                         Debug.Log($"[{gameObject.name}] acepta rol: {msg.messageType}");
                         SetMisionBehaviour(msg.messageType);
@@ -401,6 +431,13 @@ public class CerebroSubsumido : MonoBehaviour
         if (behaviourQueue.Count > 0) behaviourQueue.Peek().terminate();
         behaviourQueue.Clear();
         behaviourQueue.Enqueue(target);
+        if (target != null)
+    {
+        if (behaviourQueue.Count > 0) behaviourQueue.Peek().terminate();
+        behaviourQueue.Clear();
+        behaviourQueue.Enqueue(target);
+        Debug.Log($"<color=green>[{gameObject.name}]</color> Cola seteada con: {target.GetType().Name}, cumple: {target.cumplePrecondiciones()}");
+    }
     }
 
     /// <summary>
@@ -410,6 +447,7 @@ public class CerebroSubsumido : MonoBehaviour
     public void RunCurrentBehaviour()
     {
         if (behaviourQueue.Count > 0) {
+            Debug.Log($"<color=white>[{gameObject.name}]</color> Ejecutando: {behaviourQueue.Peek().GetType().Name}, cumple: {behaviourQueue.Peek().cumplePrecondiciones()}");
             if (behaviourQueue.Peek().cumplePrecondiciones()) {
                 NPCBehaviour current = behaviourQueue.Peek();   
                 current.ejecutar();

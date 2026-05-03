@@ -19,13 +19,20 @@ public class Chase : NPCBehaviour
         return new (Type, string, bool)[]{(typeof(Vision), "Player", true)};
     }
 
+    // override public bool cumplePrecondiciones()
+    // {   
+    //     return cerebro.baseConocimiento.PlayerPosition != null && cerebro.baseConocimiento.mision == Message_Types.ChasePlayer;
+    // }
     override public bool cumplePrecondiciones()
-    {   
-        return cerebro.baseConocimiento.PlayerPosition != null;
+    {
+        return cerebro.baseConocimiento.mision == Message_Types.ChasePlayer
+            && (cerebro.baseConocimiento.PlayerPosition != null
+                || cerebro.baseConocimiento.isThereMissionTarget);
     }
-
     override public void ejecutar()
-    {   
+    {   Vector3 destino = cerebro.baseConocimiento.PlayerPosition != null
+        ? cerebro.baseConocimiento.PlayerPosition.position
+        : cerebro.baseConocimiento.MissionTarget;
         // Navega hacia la posicion actual del jugador
         cerebro.navAgent.destination = jugador.transform.position;
     }
